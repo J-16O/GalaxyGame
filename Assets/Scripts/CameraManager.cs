@@ -1,48 +1,91 @@
 using UnityEngine;
-using Cinemachine;
+using UnityEngine.Playables;
 
 public class CameraManager : MonoBehaviour
 {
-    [SerializeField] private CinemachineVirtualCamera _internalCamera;
-    [SerializeField] private GameObject _externalCamera;
-    [SerializeField] private GameObject _introcamera;
+    public GameObject introductionCamera;
+    public GameObject internalCamera;
+    public GameObject externalCamera;
+    public PlayableDirector cinematicTimeline;
 
-    private float switchDelay = 15f;
-    private bool _isInternalActive = true;
+    private float introDuration = 5f;
+    private float idleTimer = 0f;
+    private float idleThreshold = 5f;
+    private bool isMonitoringIdle = false;
+    private bool isCinematicPlaying = false;
+    private bool useInternal = true;
 
     void Start()
     {
-        if (_internalCamera == null || _externalCamera == null || _introcamera == null)
-        {
-            Debug.LogError("cameras are not assigned in the inspector!");
-            return;
-        }
+        SetActiveCamera(introductionCamera);
+        internalCamera.SetActive(false);
+        externalCamera.SetActive(false);
+        cinematicTimeline.Stop();
 
-        _introcamera.SetActive(true);
-        _internalCamera.gameObject.SetActive(false);
-        _externalCamera.SetActive(false);
-
-        Invoke(nameof(SwitchToInner), switchDelay);
+        Invoke(nameof(EnablePlayerView), introDuration);
     }
 
-    void SwitchToInner()
+    void EnablePlayerView()
     {
-        _introcamera.SetActive(false);
-        SetActiveCamera(true); 
+        SetActiveCamera(useInternal ? internalCamera : externalCamera);
+        isMonitoringIdle = true;
+        idleTimer = 0f;
     }
 
     void Update()
     {
+        // Kamera değiştir (R tuşuyla)
         if (Input.GetKeyDown(KeyCode.R))
         {
-            _isInternalActive = !_isInternalActive;
-            SetActiveCamera(_isInternalActive);
+            useInternal = !useInternal;
+            SetActiveCamera(useInternal ? internalCamera : externalCamera);
+        }
+
+        if (isCinematicPlaying)
+        {
+            if (PlayerInputDetected())
+            {
+                cinematicTimeline.Stop();
+                EnablePlayerView();
+                isCinematicPlaying = false;
+            }
+            return;
+        }
+
+        if (isMonitoringIdle)
+        {
+            if (PlayerInputDetected())
+            {
+                idleTimer = 0f;
+            }
+            else
+            {
+                idleTimer += Time.deltaTime;
+                if (idleTimer >= idleThreshold)
+                {
+                    StartCinematic();
+                }
+            }
         }
     }
 
-    void SetActiveCamera(bool internalActive)
+    void StartCinematic()
     {
-        _internalCamera.gameObject.SetActive(internalActive);
-        _externalCamera.SetActive(!internalActive);
+        isMonitoringIdle = false;
+        isCinematicPlaying = true;
+        cinematicTimeline.Play();
+    }
+
+    bool PlayerInputDetected()
+    {
+        return Input.anyKey || Mathf.Abs(Input.GetAxis("Mouse X")) > 0 || Mathf.Abs(Input.GetAxis("Mouse Y")) > 0;
+    }
+
+    void SetActiveCamera(GameObject cam)
+    {
+        introductionCamera.SetActive(false);
+        internalCamera.SetActive(false);
+        externalCamera.SetActive(false);
+        cam.SetActive(true);
     }
 }
